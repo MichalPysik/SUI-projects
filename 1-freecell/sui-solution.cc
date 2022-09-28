@@ -34,9 +34,9 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 			tmp_solution = solution_map[*working_state];
 
 			// convert correct solution from vector of pointers to vector of objects
-			SearchAction act(*tmp_solution.back());
+			SearchAction act(*tmp_solution.front());
 			solution.push_back(act);
-			tmp_solution.pop_back();
+			tmp_solution.erase(tmp_solution.begin());
 
 			while(!tmp_solution.empty()) {
 				act = *tmp_solution.front();
