@@ -6,6 +6,7 @@ It serves as a basis for student homework in Artificial Intelligence and Machine
 Simply run `make`.
 Requires C++17-able compiler.
 The Makefile assumes POSIX threads as available implementation for `std::thread`, but this can be replaced in the linking step.
+For Windows users it is required to link PSAPI library in the makefile with `-lpsapi` in `fc-sui:`.
 
 ## Usage
 The build process results in binary `fc-sui`, which expects two positional arguments:
@@ -34,5 +35,5 @@ The A* with the default `nb_not_home` heuristic can realistically solve deals up
 
 #### Memory usage
 Breadth-first strategies can get really wild allocating all the states to explore.
-Maximal memory consumption can be limited using `--memory-limit NB_BYTES`.
+Maximal memory consumption can be limited using `--mem-limit NB_BYTES`.
 If the program takes more than `NB_BYTES` in resident memory usage, it aborts itself.
