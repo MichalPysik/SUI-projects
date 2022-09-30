@@ -3,49 +3,49 @@
 #include "memusage.h"
 
 #include <queue>
+#include <algorithm>
 
+
+
+/*
+class Bfs_node {
+	public:
+		std::shared_ptr<SearchState> parent_state;
+		SearchAction action;
+
+		Bfs_node(std::shared_ptr<SearchState> parent_state, SearchAction action) {
+			parent_state = parent_state;
+			action = SearchAction(action);
+		}
+};
+*/
+
+typedef struct bfs_node {
+	std::shared_ptr<SearchState> parent_state;
+	std::shared_ptr<SearchAction> action;
+} Bfs_node;
 
 std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_state) {
 	std::vector<SearchAction> solution, actions;
-	std::shared_ptr<SearchState> working_state(new SearchState(init_state));
+	std::shared_ptr<SearchState> working_state = std::make_shared<SearchState>(init_state);
 	std::shared_ptr<SearchState> tmp_state;
 
 	// queue for storing expanded nodes
-	std::queue<std::shared_ptr<SearchState>> state_queue;
-	state_queue.push(working_state);
+	std::queue<std::shared_ptr<SearchState>> open;
+	open.push(working_state);
 
-	std::shared_ptr<SearchAction> tmp_action;
+	// map to keep track of expanded states, their parent states and last action leading to them
+	std::map<SearchState, Bfs_node> closed;
 
-	// map that maps solutions to game states
-	std::map<SearchState, std::vector<std::shared_ptr<SearchAction>>> solution_map;
-	std::vector<std::shared_ptr<SearchAction>> tmp_solution;
-	solution_map[*working_state] = tmp_solution;
-
-	while(!state_queue.empty()) {
+	closed[*working_state].parent_state = nullptr;
+	
+	while(!open.empty()) {
 		// check whether 1KiB close to memory limit
 		if (getCurrentRSS() + 1024 > mem_limit_)
 			break;
 
-		working_state = state_queue.front();
-		state_queue.pop();
-
-		// correct solution found
-		if (working_state->isFinal()) {
-			tmp_solution = solution_map[*working_state];
-
-			// convert correct solution from vector of pointers to vector of objects
-			SearchAction act(*tmp_solution.front());
-			solution.push_back(act);
-			tmp_solution.erase(tmp_solution.begin());
-
-			while(!tmp_solution.empty()) {
-				act = *tmp_solution.front();
-				solution.push_back(act);
-				tmp_solution.erase(tmp_solution.begin());
-			}
-
-			return solution;
-		}
+		working_state = open.front();
+		open.pop();
 
 		// check the moves available from the current state
 		actions = working_state->actions();
@@ -54,89 +54,99 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 		if (actions.size() > 0) {
 			// ...then do so and insert all possible moves into queue and create a new solution
 			for (auto action : actions) {
-
-				tmp_state = std::make_shared<SearchState>(*working_state);
-				*tmp_state = action.execute(*tmp_state);
+				tmp_state = std::make_shared<SearchState>(action.execute(*working_state));
 
 				// expanded node leads to some already visited state
-				if (solution_map.count(*tmp_state))
+				if (closed.count(*tmp_state))
 					continue;
 
-				tmp_action = std::make_shared<SearchAction>(action);
-				tmp_solution = solution_map[*working_state];
-				tmp_solution.push_back(tmp_action);
-				solution_map[*tmp_state] = tmp_solution;
+				closed[*tmp_state].parent_state = working_state;
+				closed[*tmp_state].action = std::make_shared<SearchAction>(action);
 
-				state_queue.push(tmp_state);
+				// correct solution found
+				if (tmp_state->isFinal()) {
+					// create reversed solution and then reverse it into chronological order
+					while(closed[*tmp_state].parent_state != nullptr) {
+						solution.push_back(*closed[*tmp_state].action);
+						tmp_state = closed[*tmp_state].parent_state;
+					}
+					std::reverse(solution.begin(), solution.end());
+
+					return solution;
+				}
+
+				open.push(tmp_state);
 			}
 		}
-		
-		// delete the current state's associated solution,
-		// but keep the state to remember that it was visited
-		solution_map[*working_state].clear();
 	}
-
+	
 	return {};
 }
 
+typedef struct dfs_node {
+	std::shared_ptr<SearchState> parent_state;
+	std::shared_ptr<SearchAction> action;
+	unsigned long depth;
+} Dfs_node;
+
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
 	std::vector<SearchAction> solution, actions;
-	SearchState working_state(init_state);
-	SearchState tmp_state(working_state);
+	std::shared_ptr<SearchState> working_state = std::make_shared<SearchState>(init_state);
+	std::shared_ptr<SearchState> tmp_state;
 
-	// stack for storing current expanded nodes
-	std::vector<SearchState> state_stack;
-	state_stack.push_back(working_state);
+	// queue for storing expanded nodes
+	std::vector<std::shared_ptr<SearchState>> open;
+	open.push_back(working_state);
 
-	// temporary just for variable declaration
-	Location a, b;
-	a.cl = b.cl = LocationClass::Homes;
-	a.id = b.id = 0;
-	SearchAction last_action(a, b);
-	bool action_done;
+	// map to keep track of expanded states, their parent states and last action leading to them
+	std::map<SearchState, Dfs_node> closed;
 
-	std::map<SearchState, char> state_memory;
+	closed[*working_state].parent_state = nullptr;
+	closed[*working_state].depth = 0;
 
-	while(!state_stack.empty()) {
-		working_state = SearchState(state_stack.back());
-		state_stack.pop_back();
-		state_memory[working_state] = '\0';
+	while(!open.empty()) {
+		if (getCurrentRSS() + 1024 > mem_limit_)
+			break;
 
-		if (working_state.isFinal())
-			return solution;
+		working_state = open.back();
+		open.pop_back();
 
-		if (solution.size() == depth_limit_)
+		if (closed[*working_state].depth == depth_limit_)
 			continue;
 
 		// check the moves available from the current state
-		actions = working_state.actions();
+		actions = working_state->actions();
 
 		// if the current node can be expanded...
 		if (actions.size() > 0) {
 			// ...then do so and insert all possible moves into queue and create a new solution
-			action_done = false;
 			for (auto action : actions) {
-				// check whether enough memory is still available for the move to execute
-				if (getCurrentRSS() + 2*(sizeof(SearchState) + sizeof(CardStorage) + 4) + sizeof(std::vector<RawMove>) > mem_limit_)
-					return {};
-
-				tmp_state = action.execute(working_state);
+				tmp_state = std::make_shared<SearchState>(action.execute(*working_state));
 
 				// expanded node leads to some already visited state
-				if (state_memory.count(tmp_state))
+				if (closed.count(*tmp_state))
 					continue;
 
-				state_stack.push_back(tmp_state);
-				last_action = action;
-				action_done = true;
-			}
-			if (action_done)
-				solution.push_back(last_action);
-		}
-		else
-			solution.pop_back();
-	}
+				closed[*tmp_state].parent_state = working_state;
+				closed[*tmp_state].action = std::make_shared<SearchAction>(action);
+				closed[*tmp_state].depth = closed[*working_state].depth + 1;
 
+				if (tmp_state->isFinal()) {
+					// create reversed solution and then reverse it into chronological order
+					while(closed[*tmp_state].parent_state != nullptr) {
+						solution.push_back(*closed[*tmp_state].action);
+						tmp_state = closed[*tmp_state].parent_state;
+					}
+					std::reverse(solution.begin(), solution.end());
+
+					return solution;
+				}
+
+				open.push_back(tmp_state);
+			}
+		}
+	}
+	
 	return {};
 }
 
