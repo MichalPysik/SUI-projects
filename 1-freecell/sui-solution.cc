@@ -73,14 +73,14 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 typedef struct dfs_node {
 	std::shared_ptr<SearchState> parent_state;
 	std::shared_ptr<SearchAction> action;
-	unsigned long depth;
+	int depth;
 } Dfs_node;
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
 	std::vector<SearchAction> solution, actions;
 	std::shared_ptr<SearchState> working_state = std::make_shared<SearchState>(init_state);
 	std::shared_ptr<SearchState> tmp_state;
-	unsigned long depth;
+	int depth;
 
 	// stack for storing nodes to expand
 	std::vector<std::shared_ptr<SearchState>> open;
@@ -136,9 +136,21 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state)
 	return {};
 }
 
+double my_abs (double a, double b) {
+	if (a > b)
+		return a - b;
+	else
+		return b - a;
+}
 
 double StudentHeuristic::distanceLowerBound(const GameState &state) const {
-    return 0;
+	double val = 0;
+
+	for (const auto &stack : state.stacks) {
+		val += stack.nbCards();
+	}
+
+    return val;
 }
 
 typedef struct a_star_node {
@@ -150,7 +162,7 @@ typedef struct a_star_node {
 typedef struct a_star_open_node {
 	std::shared_ptr<SearchState> state;
 	double rank;
-	unsigned long distance;
+	int distance;
 } A_star_open_node;
 
 auto a_star_compare = [](A_star_open_node a, A_star_open_node b) {
